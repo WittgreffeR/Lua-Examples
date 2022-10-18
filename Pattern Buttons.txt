@@ -1,0 +1,315 @@
+AllButtons:EnableReceiveDamageScriptEvent(true)
+SecretDetector:Deactivate()
+RockLight:Deactivate()
+AllOffLights:Deactivate()
+AllOnLights:Deactivate()
+
+local pattern = {{false, true, false},{false, false, false},{false, false, false}}
+
+local pEvents = {
+false,  --Secret
+false,  --Lore of Light gate
+false,  --Main exit gate
+false   --Skill point
+}
+
+-- payload : CReceiveDamageScriptEvent
+
+RunHandled(WaitForever,
+  --Lights on when chamber opened
+  On(CustomEvent("PatternLightsOn")), function()
+    r1c1off:Activate()
+    r1c2on:Activate()
+    r1c3off:Activate()
+    r2c1off:Activate()
+    r2c2off:Activate()
+    r2c3off:Activate()
+    r3c1off:Activate()
+    r3c2off:Activate()
+    r3c3off:Activate()
+  end,
+  
+  --Lights off when cannot return
+  On(CustomEvent("PatternLightsOff")), function()
+    AllOffLights:Deactivate()
+    AllOnLights:Deactivate()
+  end,
+  
+  --Damage script fixer
+  OnEvery(CustomEvent("GameLoaded")), function()
+    AllButtons:EnableReceiveDamageScriptEvent(true)
+  end,
+  
+  --Pattern recognition logic
+  OnEvery(CustomEvent("PatternUpdate")), function()
+    --Secret
+    if pattern[1][1] == true
+    and pattern[1][2] == true
+    and pattern[1][3] == true
+    and pattern[2][1] == false
+    and pattern[2][2] == true
+    and pattern[2][3] == false
+    and pattern[3][1] == true
+	and pattern[3][2] == true
+    and pattern[3][3] == true
+    and pEvents[1] == false
+    then
+      pEvents[1] = true
+      Wait(Delay(0.2))
+      worldInfo:EveryPlayerInRangeSay(myself, 1000, thosenut)
+      SecretDrone:SpawnSimple()
+      SecretDetector:Recharge()
+    
+    --Lore of Light pattern
+    elseif pattern[1][1] == true
+    and pattern[1][2] == true
+    and pattern[1][3] == true
+    and pattern[2][1] == true
+    and pattern[2][2] == false
+    and pattern[2][3] == true
+    and pattern[3][1] == false
+    and pattern[3][2] == true
+    and pattern[3][3] == false
+    and pEvents[2] == false
+    then
+      pEvents[2] = true
+      Wait(Delay(0.1))
+      CorrectPing:PlayOnce()
+      Wait(Delay(1))
+      GateDisappearSound:PlayOnce()
+      LoreGate:Disappear()
+      LoreMessageArea:Deactivate()
+      LightLoreStart:Recharge()
+      LoreLightEnabler:Recharge()
+      
+    --Exit gate pattern
+    elseif pattern[1][1] == true
+    and pattern[1][2] == false
+    and pattern[1][3] == true
+    and pattern[2][1] == false
+    and pattern[2][2] == true
+    and pattern[2][3] == false
+    and pattern[3][1] == true
+    and pattern[3][2] == false
+    and pattern[3][3] == true
+    and pEvents[3] == false
+    then
+      pEvents[3] = true
+      Wait(Delay(0.1))
+      CorrectPing:PlayOnce()
+      Wait(Delay(1))
+      SignalEvent("CorridorLightsOn")
+      worldInfo:SetMusic("Fight", CorridorFight)
+      RockMagic:Start()
+      PillarFX:Start()
+      RockLightSound:PlayOnce()
+      RockLight:Activate()
+      WallMover:PlayAnim("Lower")
+      MoveSound:PlayLooping()
+      Wait(Delay(5))
+      MoveSound:Stop()
+      MoveSoundEnd:PlayOnce()
+      SignalEvent("GateLowered")
+      
+    --Skill point area pattern
+    elseif pattern[1][1] == false
+    and pattern[1][2] == true
+    and pattern[1][3] == false
+    and pattern[2][1] == true
+    and pattern[2][2] == true
+    and pattern[2][3] == true
+    and pattern[3][1] == false
+    and pattern[3][2] == true
+    and pattern[3][3] == false
+    and pEvents[4] == false
+    then
+      pEvents[4] = true
+      Wait(Delay(0.1))
+      CorrectPing:PlayOnce()
+      Wait(Delay(1))
+      SignalEvent("OpenSkillpoint")
+    end
+  end,
+  
+  --Lights on/off logic
+  --rXcX means row X, column X
+  OnEvery(Event(r1c1.ReceiveDamage)), function(payload)
+    local damageType = payload:GetDamageType()
+      if damageType == "Bullet" or damageType == "Explosion" then
+        --Off to On
+        if pattern[1][1] == false then
+          pattern[1][1] = true
+          r1c1off:Deactivate()
+          r1c1on:Activate()
+        else
+        
+        --On to Off
+          pattern[1][1] = false
+          r1c1on:Deactivate()
+          r1c1off:Activate()
+        end
+        r1c1:PlayAnim("Off")
+        SignalEvent("PatternUpdate")
+      end
+  end,
+  
+  OnEvery(Event(r1c2.ReceiveDamage)), function(payload)
+    local damageType = payload:GetDamageType()
+      if damageType == "Bullet" or damageType == "Explosion" then
+        --Off to On
+        if pattern[1][2] == false then
+          pattern[1][2] = true
+          r1c2off:Deactivate()
+          r1c2on:Activate()
+        else
+        
+        --On to Off
+          pattern[1][2] = false
+          r1c2on:Deactivate()
+          r1c2off:Activate()
+        end
+        r1c2:PlayAnim("Off")
+        SignalEvent("PatternUpdate")
+      end
+  end,
+  
+  OnEvery(Event(r1c3.ReceiveDamage)), function(payload)
+    local damageType = payload:GetDamageType()
+      if damageType == "Bullet" or damageType == "Explosion" then
+        --Off to On
+        if pattern[1][3] == false then
+          pattern[1][3] = true
+          r1c3off:Deactivate()
+          r1c3on:Activate()
+        else
+        
+        --On to Off
+          pattern[1][3] = false
+          r1c3on:Deactivate()
+          r1c3off:Activate()
+        end
+        r1c2:PlayAnim("Off")
+        SignalEvent("PatternUpdate")
+      end
+  end,
+  
+  OnEvery(Event(r2c1.ReceiveDamage)), function(payload)
+    local damageType = payload:GetDamageType()
+      if damageType == "Bullet" or damageType == "Explosion" then
+        --Off to On
+        if pattern[2][1] == false then
+          pattern[2][1] = true
+          r2c1off:Deactivate()
+          r2c1on:Activate()
+        else
+        
+        --On to Off
+          pattern[2][1] = false
+          r2c1on:Deactivate()
+          r2c1off:Activate()
+        end
+        r2c1:PlayAnim("Off")
+        SignalEvent("PatternUpdate")
+      end
+  end,
+  
+  OnEvery(Event(r2c2.ReceiveDamage)), function(payload)
+    local damageType = payload:GetDamageType()
+      if damageType == "Bullet" or damageType == "Explosion" then
+        --Off to On
+        if pattern[2][2] == false then
+          pattern[2][2] = true
+          r2c2off:Deactivate()
+          r2c2on:Activate()
+        else
+        
+        --On to Off
+          pattern[2][2] = false
+          r2c2on:Deactivate()
+          r2c2off:Activate()
+        end
+        r2c2:PlayAnim("Off")
+        SignalEvent("PatternUpdate")
+      end
+  end,
+  
+  OnEvery(Event(r2c3.ReceiveDamage)), function(payload)
+    local damageType = payload:GetDamageType()
+      if damageType == "Bullet" or damageType == "Explosion" then
+        --Off to On
+        if pattern[2][3] == false then
+          pattern[2][3] = true
+          r2c3off:Deactivate()
+          r2c3on:Activate()
+        else
+        
+        --On to Off
+          pattern[2][3] = false
+          r2c3on:Deactivate()
+          r2c3off:Activate()
+        end
+        r2c3:PlayAnim("Off")
+        SignalEvent("PatternUpdate")
+      end
+  end,
+  
+  OnEvery(Event(r3c1.ReceiveDamage)), function(payload)
+    local damageType = payload:GetDamageType()
+      if damageType == "Bullet" or damageType == "Explosion" then
+        --Off to On
+        if pattern[3][1] == false then
+          pattern[3][1] = true
+          r3c1off:Deactivate()
+          r3c1on:Activate()
+        else
+        
+        --On to Off
+          pattern[3][1] = false
+          r3c1on:Deactivate()
+          r3c1off:Activate()
+        end
+        r3c1:PlayAnim("Off")
+        SignalEvent("PatternUpdate")
+      end
+  end,  
+  
+  OnEvery(Event(r3c2.ReceiveDamage)), function(payload)
+    local damageType = payload:GetDamageType()
+      if damageType == "Bullet" or damageType == "Explosion" then
+        --Off to On
+        if pattern[3][2] == false then
+          pattern[3][2] = true
+          r3c2off:Deactivate()
+          r3c2on:Activate()
+        else
+        
+        --On to Off
+          pattern[3][2] = false
+          r3c2on:Deactivate()
+          r3c2off:Activate()
+        end
+        r3c2:PlayAnim("Off")
+        SignalEvent("PatternUpdate")
+      end
+  end,
+  
+  OnEvery(Event(r3c3.ReceiveDamage)), function(payload)
+    local damageType = payload:GetDamageType()
+      if damageType == "Bullet" or damageType == "Explosion" then
+        --Off to On
+        if pattern[3][3] == false then
+          pattern[3][3] = true
+          r3c3off:Deactivate()
+          r3c3on:Activate()
+        else
+        
+        --On to Off
+          pattern[3][3] = false
+          r3c3on:Deactivate()
+          r3c3off:Activate()
+        end
+        r3c3:PlayAnim("Off")
+        SignalEvent("PatternUpdate")
+      end
+  end  
+)
