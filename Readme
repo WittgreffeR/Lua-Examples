@@ -1,2 +1,3 @@
 All of the Lua code displayed here is not pure Lua, but rather scripting integrated with the Serious Editor (SED), the tool used to create content for the Serious Engine, which Serious Sam: Siberian Mayhem runs in. The Lua therefore performs commands that only make sense within SED, and references variables that are linked to the code using SED.
+
 The fact that all this scripting is in SED is the reason why the code is supplied in .txt files; I simply copied the code from SED's scripting window into a .txt file so it can be viewed here.
