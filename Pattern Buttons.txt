@@ -66,7 +66,7 @@ RunHandled(WaitForever,
     then
       pEvents[1] = true
       Wait(Delay(0.2))
-      worldInfo:EveryPlayerInRangeSay(myself, 1000, thosenut)
+      worldInfo:EveryPlayerInRangeSay(myself, 1000, silly_noise)
       SecretDrone:SpawnSimple()
       SecretDetector:Recharge()
     
