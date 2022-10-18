@@ -1,0 +1,163 @@
+DESCRIPTION:
+This code handles all the necessary events for one of the arenas in my levels. This arena has the player searching for keys to unlock a door, and picking up a key spawns enemies. Once all four keys are picked up, it spawns extra enemies on top of that, and allows the player through the door.
+Because player feedback indicated that finding the keys was difficult, I implemented a system where beacons appear above the keys if you spend too long finding them - the bulk of the logic for these beacons is in the while loop at the end of the file.
+Because having the beacons active while fighting enemies could be distracting, and because time spent fighting is not actually time spent searching, I used a while loop to track whether or not the player is currently in combat and only increment the BeaconTime variable by 1 for every second spent exploring.
+If the player spends a total of 70 seconds exploring without finding all the keys, then the beacons appear. They disappear once combat begins to avoid them distracting the player, and re-appear when the enemies are dead.
+
+CODE STARTS HERE:
+
+local KeysPicked = 0
+local KamiKey = 0
+local GnaarKey = 0
+local ProcKey = 0
+local PitKey = 0
+local BeaconTime = 0
+local IsInFight = 0
+
+AllBeacons:Disappear()
+
+RunHandled(WaitForever,
+  --All keycards collected, open door
+  On(All(Events(AllKeycards.Picked))), function()
+    worldInfo:AddTextEffectToAllPlayers(HUDText, "NETRICSA: We now have all the keycards and can open the door!")
+    NetricsaMessageArea:Deactivate()
+    DoorUnlockerArea:Recharge()
+    Wait(Delay(2))
+    Harpies:SpawnSimple()
+    Drones:SpawnSimple()
+    Troopers:SpawnSimple()
+    Wait(Event(DoorUnlockerArea.Activated))
+    PlasmaWall:ForceOpen()
+    objObjectivePhaseCompleted(worldInfo, Mission, "MierelandMain1")
+  end,
+  
+  --keycard traps
+  On(Event(Keycard1.Picked)), function()
+    KamiKey = 1
+    KeysPicked = KeysPicked+1
+    IsInFight = IsInFight+1
+    Wait(Delay(0.5))
+    Kamikazes:SpawnSimple()
+    Wait(Delay(1))
+    Firecracker:SpawnSimple()
+    Wait(Delay(1))
+    Kamikazes2:SpawnMaintainGroup()
+    Firecracker2:SpawnSimple()
+    Wait(Delay(1))
+    RockRocketeers:SpawnSimple()
+  end,
+  
+  On(Event(Keycard2.Picked)), function()
+    PitKey = 1
+    KeysPicked = KeysPicked+1
+    IsInFight = IsInFight+1
+    Wait(Delay(0.5))
+    Rocketeers:SpawnSimple()
+    Wait(Delay(1))
+    Gnaars:SpawnSimple()
+    Wait(Delay(1))
+    Bombers:SpawnSimple()
+    DipFirecracker:SpawnSimple()
+  end,
+  
+  On(Event(Keycard3.Picked)), function()
+    ProcKey = 1
+    KeysPicked = KeysPicked+1
+    IsInFight = IsInFight+1
+    Wait(Delay(0.5))
+    Processed:SpawnSimple()
+    Wait(Delay(1.5))
+    Processed2:SpawnSimple()
+    Wait(Delay(1))
+    WoodsBombers:SpawnSimple()
+    WoodsFirecracker:SpawnSimple()
+  end,
+  
+  On(Event(Keycard4.Picked)), function()
+    GnaarKey = 1
+    KeysPicked = KeysPicked+1
+    IsInFight = IsInFight+1
+    Wait(Delay(0.5))
+    Spiders:SpawnSimple()
+    Wait(Delay(1))
+    FemaleGnaars:SpawnSimple()
+    Wait(Delay(1))
+    BigSpiders:SpawnSimple()
+  end,
+  
+  --Checkpoints
+  On(All(Events(RockEnemies.AllKilled))), function()
+    if KeysPicked < 4 then
+      Wait(Delay(1))
+      RockCheckpoint:Start()
+      Wait(Delay(4))
+      IsInFight = IsInFight-1
+    end
+  end,
+  
+  On(All(Events(WoodsEnemies.AllKilled))), function()
+    if KeysPicked < 4 then
+      Wait(Delay(1))
+      WoodsCheckpoint:Start()
+      Wait(Delay(4))
+      IsInFight = IsInFight-1      
+    end
+  end,
+  
+  On(All(Events(PitEnemies.AllKilled))), function()
+    if KeysPicked < 4 then
+      Wait(Delay(1))
+      PitCheckpoint:Start()
+      Wait(Delay(4))
+      IsInFight = IsInFight-1      
+    end
+  end,
+  
+  On(All(Events(GnaarsEnemies.AllKilled))), function()
+    if KeysPicked < 4 then
+      Wait(Delay(1))
+      GnaarCheckpoint:Start()
+      Wait(Delay(4))
+      IsInFight = IsInFight-1      
+    end
+  end,
+  
+  --Beacons
+  On(Event(NetricsaMessageArea.Activated)), function()
+    while(KeysPicked < 4) do
+      --Time to show beacons ticks up by 1 per second as long as you're not in a fight
+      --IsInFight is an integer rather than a boolean because of the possibility of activating multiple fights at once
+      if BeaconTime < 70 and IsInFight == 0 then
+        BeaconTime = BeaconTime+1
+      end
+      if IsInFight == 1 then
+        AllBeacons:Disappear()
+      end      
+      if BeaconTime == 70 and IsInFight == 0 then
+        --Show beacons for keys that haven't yet been taken
+        --These variables are integers but act like booleans
+        if KamiKey == 0 then  --Fight with kamikazes
+          KamiBeacon:Appear()
+          KamiNoise:PlayOnce()
+        end
+        if ProcKey == 0 then  --Fight with processed
+          ProcBeacon:Appear()
+          ProcNoise:PlayOnce()
+        end
+        if PitKey == 0 then  --Fight in the pit
+          PitBeacon:Appear()
+          PitNoise:PlayOnce()
+        end
+        if GnaarKey == 0 then  --Fight with the gnaars and spiders
+          GnaarBeacon:Appear()
+          GnaarNoise:PlayOnce()
+        end
+      end
+      Wait(Delay(1))  --Tick by 1 second
+    end
+    
+    --This is performed once the while loop is complete, i.e. after all four keys are taken
+    --Deactivate all beacons
+    AllBeacons:Disappear()
+  end
+)
