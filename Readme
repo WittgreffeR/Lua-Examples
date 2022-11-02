@@ -1,3 +1,5 @@
-The code here was created using the Serious Editor (SED), the creation tool for the Serious Engine. The code was copied from SED to .txt files for viewing in GitHub. An explanation of what each example does is found at the top of the file.
+The code here was created using the Serious Editor (SED), the creation tool for the Serious Engine. The code was copied from SED to .txt files for viewing in GitHub.
+
+An explanation of what each example piece of code does is found at the top of the file. The examples had to be designed to be compatible for both single-player and multi-player.
 
 The code has to be run in the game environment it was created for, as the code performs commands that only make sense in the Serious Engine, and variables are linked to in-game entities using SED.
