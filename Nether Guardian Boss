@@ -1,0 +1,298 @@
+DESCRIPTION:
+A scripted boss fight against the "Nether Guardians" (referred to as Metal Snakes in the code) has the player fight two powerful scripted enemies at once, the Gold Nether Guardian (or "Gold Snake") and Red Nether Guardian (or "Red Snake").
+The code for both snakes is near-identical, they only differ in one specific attack, so this file just includes the script for the Gold Snake.
+This script handles the majority of the behaviour of the snakes, but it also interacts with a more specific behaviour script attached to the enemy's behaviour parameters, as well as a script that spawns in the snakes when the required conditions are triggered, and a script that keeps track of the health of both metal snakes to ensure their death behaviour is performed properly.
+
+I have added additional comments (marked by --) next to some important parts for further context.
+
+CODE STARTS HERE:
+
+-- DEFINITIONS
+--=================================================
+local sndAttak = worldGlobals.worldInfo:LoadResource(Depfile("Content/SeriousSam4/Sounds/Enemies/MetalSnake/Firing.wav"))
+local scream = worldGlobals.worldInfo:LoadResource(Depfile("Content/SeriousSam4/Sounds/Enemies/MetalSnake/MomentOfDeath.wav"))
+local resSpawnProperties = worldGlobals.worldInfo:LoadResource(Depfile("Content/SeriousSam4/Databases/MetalSnakeSpawnProperties.rsc"))
+local projectile = worldGlobals.worldInfo:LoadResource(Depfile("Content/SeriousSamSM/SamCraft/Databases/Projectiles/GoldSnake.ep"))
+
+local ProjectileCount = 9
+local minDelay = 9
+local maxDelay = 7
+
+local sndBallReady = worldGlobals.worldInfo:LoadResource(Depfile("Content/SeriousSam4/Sounds/Enemies/Reptiloid/Reptiloid_Whoosh.wav"))
+local sndBall = worldGlobals.worldInfo:LoadResource(Depfile("Content/SeriousSam4/Sounds/Enemies/Reptiloid/Reptiloid_Fireball.wav"))
+local GoldBall = worldGlobals.worldInfo:LoadResource(Depfile("Content/SeriousSamSM/SamCraft/Databases/Projectiles/GoldSnakeBall.ep"))
+local BallMin = 1
+local BallMax = 2
+local ballsDelay = 7
+
+local RedLaser = worldGlobals.worldInfo:LoadResource(Depfile("Content/SeriousSamSM/SamCraft/Databases/Projectiles/GoldSnakeFireball.ep"))
+local sndLaser = worldGlobals.worldInfo:LoadResource(Depfile("Content/SeriousSam4/Sounds/Enemies/Pyro/Pyro_Fireball.wav"))
+
+local SplashProj = worldGlobals.worldInfo:LoadResource(Depfile("Content/SeriousSamSM/SamCraft/Databases/Projectiles/GoldSnakeSplash.ep"))
+local sndSplash = worldGlobals.worldInfo:LoadResource(Depfile("Content/SeriousSamSM/Sounds/Enemies/BossBrand/Fireball.wav"))
+local SplashTemplate = worldGlobals.worldInfo:LoadResource(Depfile("Content/SeriousSamSM/SamCraft/Databases/Templates/EnderSplash.rsc"))
+
+local TPTemplate = worldGlobals.worldInfo:LoadResource(Depfile("Content/SeriousSamSM/SamCraft/Databases/Templates/SnakeBossTP.rsc"))
+local sndTP = worldGlobals.worldInfo:LoadResource(Depfile("Content/SeriousSam4/Sounds/Misc/Teleport.wav"))
+local sndPreTP = worldGlobals.worldInfo:LoadResource(Depfile("Content/SeriousSamSM/Sounds/Misc/PortalBig.wav"))
+local keepFX = true
+
+-- penMetalSnake : CScriptedLeggedCharacterEntity
+
+
+-- FUNCTIONS
+--=================================================
+
+--This function ensures that a teleportation particle effect stays with the snake as it moves rather than remaining in place.
+local function PreTPfxSync_Gold(PreTPfx, penMetalSnake)
+  RunAsync(function()
+    while keepFX == true do
+      PreTPfx:SetPlacement(penMetalSnake:GetPlacement())
+      Wait(CustomEvent("OnStep"))
+    end
+  end)
+end
+
+--This ensures the above function works properly in co-op multiplayer.
+if worldInfo:IsSinglePlayer() then
+  worldGlobals.PreTPfxSync_Gold_RPC = PreTPfxSync_Gold
+else
+  worldGlobals.CreateRPC("server","reliable","PreTPfxSync_Gold_RPC",PreTPfxSync_Gold)
+end
+
+--This function triggers if the red metal snake has died and the gold snake is at 10% health or below; rather than dying, it "teleports away" and reappears later in the level.
+local function GoldRunAway(penMetalSnake)
+    -- TPfx : CParticleEffect
+    -- PreTPfx : CParticleEffect
+    print("Gold Escaping!")
+    SignalEvent("BreakRunHandled")
+    penMetalSnake.isEscaping = true
+    penMetalSnake:BeInvulnerable(true)
+    penMetalSnake:EnableReceiveDamageScriptEvent(false)
+    local PreTPfx = TPTemplate:SpawnEntityFromTemplateByName("PreTP", worldGlobals.worldInfo, penMetalSnake:GetPlacement())
+    PreTPfx:SetRelevantEntity(penMetalSnake)
+    worldGlobals.PreTPfxSync_Gold_RPC(PreTPfx, penMetalSnake)
+    penMetalSnake:PlaySound(sndPreTP,1,1,0)
+
+    Wait(Delay(2.5))
+    keepFX = false
+    penMetalSnake:PlaySound(sndTP,1,1,0)
+    local TPfx = TPTemplate:SpawnEntityFromTemplateByName("PostTP", worldGlobals.worldInfo, penMetalSnake:GetPlacement())
+    
+    penMetalSnake:Disappear(true)
+    worldInfo:ClearBoss()
+    Wait(Delay(3))
+    PreTPfx:Delete()
+    Wait(Delay(2))
+    TPfx:Delete()
+    SignalEvent("BossEscaped")
+end
+
+local function SplashAttack(shooter, position, target)
+  -- splasher : CGenericProjectileEntity
+  local splasher = worldInfo:SpawnProjectile(shooter, SplashProj, position, 19, target)
+end
+
+
+-- NOTHING BELOW THIS POINT GETS RUN BY CLIENT!
+--In multiplayer, clients only need the code above this point, and if they try to run anything below it will seriously mess with the scripting - only the host handles controlling the enemy's behaviour.
+--==================================================
+if not worldInfo:NetIsHost() then return end
+
+
+-- MAIN CODE
+--==================================================
+Wait(CustomEvent("SpawnGoldSnake"))  --This event is triggered by another script that detects when the player has entered the boss arena.
+
+local penMetalSnake = SnakeSpawner:SpawnOne()
+penMetalSnake:SetName("GoldSnakeBoss")
+penMetalSnake:SetAlignment("Evil")
+penMetalSnake:FindFoe()
+worldGlobals.SetSnakeSpeedMultiplier(penMetalSnake, 3.4, 0)
+penMetalSnake.GoldLastStand = false
+
+--1 more rocket on Serious difficulty
+if worldGlobals.iDifficultyIndex == 5 then
+  ProjectileCount = ProjectileCount + 1
+end
+
+RunAsync(function()
+  RunHandled(function()
+    penMetalSnake:EnableReceiveDamageScriptEvent(true)
+    WaitForever()
+  end,
+  
+  OnEvery(Delay(3)), function()
+    if not IsDeleted(penMetalSnake) and penMetalSnake:IsAlive() then
+      penMetalSnake:EnableReceiveDamageScriptEvent(true)
+    end
+  end,
+  
+  OnEvery(Event(penMetalSnake.ReceiveDamage)), function(eventPayload)
+    local slDamage = eventPayload:GetDamageAmount()
+    local slNewHealth = penMetalSnake:GetHealth()-slDamage
+    
+    --increase homing balls at lower health levels
+    if penMetalSnake:GetHealth() <= penMetalSnake:GetMaxHealth()/3 then --1/3 health
+      BallMin = 3
+    elseif penMetalSnake:GetHealth() <= penMetalSnake:GetMaxHealth()/2 then --1/2 health
+      BallMax = 4
+    elseif penMetalSnake:GetHealth() <= (penMetalSnake:GetMaxHealth()/4)*3 then --3/4 health
+      BallMin = 2
+      BallMax = 3
+    end    
+    
+    if penMetalSnake:GetHealth() <= penMetalSnake:GetMaxHealth()/10 and penMetalSnake.GoldLastStand == true then
+      GoldRunAway(penMetalSnake)
+    end
+  end
+  )
+end
+)
+
+BreakableRunHandled(WaitForever,
+  On(CustomEvent("BreakRunHandled")), function()  --Ensure that everything immediately stops when running away
+    BreakRunHandled()
+  end,
+  
+  -- attacks more intense if last one standing
+  On(CustomEvent("GoldLastStanding")), function()
+    penMetalSnake.GoldLastStand = true
+    
+    --run away immediately if already at health threshhold
+    if penMetalSnake:GetHealth() < (penMetalSnake:GetMaxHealth()/100)*8 then
+      penMetalSnake:ReceiveHealth(100, false)
+      GoldRunAway(penMetalSnake)
+    elseif penMetalSnake:GetHealth() <= penMetalSnake:GetMaxHealth()/10 then
+      GoldRunAway(penMetalSnake)
+    end
+    
+    ProjectileCount = ProjectileCount+4
+    minDelay = 4
+    maxDelay = 6
+    
+    SignalEvent("GoldSplashAttack")
+    
+    while penMetalSnake:IsAlive() do
+      Wait(Delay(6))
+      if IsDeleted(penMetalSnake) or penMetalSnake == nil or penMetalSnake:GetHealth() < 20 or penMetalSnake.bKillingSequencePlayed or penMetalSnake.isEscaping then        
+        BreakRunHandled()
+        break
+      else
+        penMetalSnake:PlaySound(sndBallReady,1,1,0)
+              
+        -- Get Foe
+        -- penPlayer : CPlayerPuppetEntity
+        local penPlayer = penMetalSnake:GetFoe()
+              
+        Wait(Delay(0.4)) --wait for prepare noise
+        -- Shoot
+        for i=1, 4 do
+          if mthXZLenV3f(penMetalSnake:GetPos()-penPlayer:GetPos()) < 300 then
+            penMetalSnake:PlaySound(sndLaser,1,1,0.15)
+            Wait(Delay(0.3))
+            local qvLaser = penMetalSnake:GetAttachmentAbsolutePlacement("LaserPointer")
+            worldInfo:SpawnProjectile(penMetalSnake, RedLaser, qvLaser, 15, penPlayer)
+            Wait(Delay(0.3))
+          else
+            Wait(Delay(2))
+          end
+        end
+      end
+    end
+  end,
+  
+  On(CustomEvent("GoldSplashAttack")), function()
+    while penMetalSnake:IsAlive() do
+      Wait(Delay(3.5))
+      if IsDeleted(penMetalSnake) or penMetalSnake == nil or penMetalSnake:GetHealth() < 20 or penMetalSnake.bKillingSequencePlayed or penMetalSnake.isEscaping then        
+        BreakRunHandled()
+        break
+      else
+        -- Get Foe
+        -- penPlayer : CPlayerPuppetEntity
+        local penPlayer = penMetalSnake:GetFoe()
+        
+        -- Shoot 
+        if mthXZLenV3f(penMetalSnake:GetPos()-penPlayer:GetPos()) < 300 then
+          local qvSplash = penMetalSnake:GetAttachmentAbsolutePlacement("Mouth")
+          SplashAttack(penMetalSnake, qvSplash, penPlayer)
+          penMetalSnake:PlaySound(sndSplash,1,1,0.15)
+        else
+          Wait(Delay(2))
+        end
+      end
+    end  
+  end,
+  
+  -- Perform main attack
+  OnEvery(Delay(mthRndRangeL(minDelay,maxDelay))), function()
+    if IsDeleted(penMetalSnake) or penMetalSnake == nil or penMetalSnake:GetHealth() < 20 or penMetalSnake.bKillingSequencePlayed or penMetalSnake.isEscaping then        
+      BreakRunHandled() 
+    else
+      -- Assign Foe
+      penMetalSnake:LoseFoe()
+      Wait(Delay(0.1))
+      penMetalSnake:FindFoe()
+      Wait(Delay(0.1))
+      local penPlayer = penMetalSnake:GetFoe()
+      
+      -- Shoot 
+      penMetalSnake:PlayAnim("Attack")
+      penMetalSnake:PlaySound(sndAttak,1,0.95,0.05)
+      for i=1, ProjectileCount do
+        if IsDeleted(penMetalSnake) or penMetalSnake == nil or penMetalSnake.bKillingSequencePlayed or penMetalSnake.isEscaping then
+          BreakRunHandled() 
+          break
+        end
+        if mthXZLenV3f(penMetalSnake:GetPos()-penPlayer:GetPos()) < 300 then
+          local qvMouth = penMetalSnake:GetAttachmentAbsolutePlacement("Mouth_1")
+          worldInfo:SpawnProjectile(penMetalSnake, projectile, qvMouth, 20, penPlayer)
+          qvMouth = penMetalSnake:GetAttachmentAbsolutePlacement("Mouth_2")
+          worldInfo:SpawnProjectile(penMetalSnake, projectile, qvMouth, 20, penPlayer)  
+          qvMouth = penMetalSnake:GetAttachmentAbsolutePlacement("Mouth_3")
+          worldInfo:SpawnProjectile(penMetalSnake, projectile, qvMouth, 20, penPlayer)                         
+          Wait(Delay(0.1))
+        else
+          Wait(Delay(2))
+        end
+      end
+       
+    end    
+  end,
+  
+  -- reptiloid homing ball attack
+  OnEvery(Delay(ballsDelay)), function()
+    if IsDeleted(penMetalSnake) or penMetalSnake == nil or penMetalSnake:GetHealth() < 20 or penMetalSnake.bKillingSequencePlayed or penMetalSnake.isEscaping then        
+      BreakRunHandled() 
+    else
+      ballsDelay = mthRndRangeL(7,9)
+      penMetalSnake:PlaySound(sndBallReady,1,1,0)
+      
+      -- Get Foe
+      -- penPlayer : CPlayerPuppetEntity
+      if penMetalSnake:GetFoe() == nil then
+        penMetalSnake:FindFoe()
+      end      
+      local penPlayer = penMetalSnake:GetFoe()
+      
+      Wait(Delay(0.4)) --wait for prepare noise
+      -- Shoot 
+      for i=1, mthRndRangeL(BallMin,BallMax) do
+        if IsDeleted(penMetalSnake) or penMetalSnake == nil or penMetalSnake.bKillingSequencePlayed or penMetalSnake.isEscaping then
+          BreakRunHandled()
+          break
+        end
+        if mthXZLenV3f(penMetalSnake:GetPos()-penPlayer:GetPos()) < 300 then
+          local qvBall = penMetalSnake:GetAttachmentAbsolutePlacement("Mouth")
+          worldInfo:SpawnProjectile(penMetalSnake, GoldBall, qvBall, 10, penPlayer)
+          penMetalSnake:PlaySound(sndBall,1,1,0.15)
+          Wait(Delay(0.55))
+        else
+          Wait(Delay(2))
+        end
+      end
+      
+    end    
+  end  
+)
