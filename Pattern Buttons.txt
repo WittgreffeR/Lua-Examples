@@ -1,7 +1,7 @@
 DESCRIPTION:
 This code handles a 3x3 grid of buttons within the level, which switch state between on or off when the player shoots them. Each button is accompanied by a light - red for off, blue for on - and must make a specific pattern out of the blue "on" lights in order to unlock certain parts of the level further onwards.
 
-To achieve this, I stored the states of the buttons in a 2d list. The 2d list "pattern" represents the entire grid, each nested list within "pattern" is an individual row of the grid, and each item within the nested lists is a column of the row. When each button receives damage, it alters the respective value of that button's position within the "pattern" 2d list, and checks whether the current values of "pattern" match one of the patterns required to progress in the level.
+To achieve this, I stored the states of the buttons in a 2d list. The 2d list "pattern" represents the entire grid, each nested list within "pattern" is an individual row of the grid, and each item within the nested lists is a column of the row. When each button receives damage, it alters the respective value of that button's position within the "pattern" 2d list, and checks whether the current values of "pattern" matches one of the patterns required to progress in the level.
 
 There are more efficient ways to check whether the current state of "pattern" matches one of the patterns that unlock parts of the level, but I laid out the code in the way it is because this is far easier to read than the alternatives.
 
