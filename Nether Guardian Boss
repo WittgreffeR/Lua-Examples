@@ -3,8 +3,6 @@ A scripted boss fight against the "Nether Guardians" (referred to as Metal Snake
 The code for both snakes is near-identical, they only differ in one specific attack, so this file just includes the script for the Gold Snake.
 This script handles the majority of the behaviour of the snakes, but it also interacts with a more specific behaviour script attached to the enemy's behaviour parameters, as well as a script that spawns in the snakes when the required conditions are triggered, and a script that keeps track of the health of both metal snakes to ensure their death behaviour is performed properly.
 
-I have added additional comments (marked by --) next to some important parts for further context.
-
 CODE STARTS HERE:
 
 -- DEFINITIONS
